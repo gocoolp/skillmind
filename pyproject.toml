@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "skillmind"
+version = "0.1.0"
+description = "Detect reusable skills from Claude Code agent telemetry"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer",
+    "rich",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.25"]
+openai    = ["openai>=1.0"]
+all       = ["anthropic>=0.25", "openai>=1.0"]
+
+[project.scripts]
+skillmind = "skillmind.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["skillmind"]
+
+[tool.uv]
+dev-dependencies = ["pytest", "pytest-cov"]
