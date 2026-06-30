@@ -51,11 +51,15 @@ class AnalysisResult:
         return sorted(self.sequence_patterns, key=lambda p: p.count, reverse=True)[:n]
 
 
+_PATH_ONLY_CMDS = {"cd", "export", "source", "."}
+
 def _normalize_command(cmd: str) -> str:
     tokens = cmd.strip().split()
     if not tokens:
         return cmd
     base = tokens[0]
+    if base in _PATH_ONLY_CMDS:
+        return base
     if len(tokens) > 1 and not tokens[1].startswith("-"):
         base = f"{tokens[0]} {tokens[1]}"
     return base
