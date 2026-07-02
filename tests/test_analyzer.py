@@ -4,6 +4,7 @@ from skillmind.analyzer.patterns import (
     AnalysisResult,
     CommandPattern,
     ToolSequencePattern,
+    _clean_snippet,
     _extract_tool_sequence,
     _normalize_command,
     analyze,
@@ -19,6 +20,16 @@ def _make_session(session_id: str, commands: list[str], tool_names: list[str] = 
         tool_calls += [ToolCall(name="Bash", input={"command": cmd}, session_id=session_id) for cmd in commands]
     if tool_names:
         tool_calls += [ToolCall(name=name, input={}, session_id=session_id) for name in tool_names]
+    turn = Turn(role="assistant", text="", tool_calls=tool_calls, session_id=session_id)
+    return Session(session_id=session_id, project_path="/fake", turns=[turn])
+
+
+def _make_session_with_context(session_id: str, cmd_context_pairs: list[tuple[str, str]]) -> Session:
+    """Session where each bash command carries an assistant reasoning snippet."""
+    tool_calls = [
+        ToolCall(name="Bash", input={"command": cmd}, session_id=session_id, context=ctx)
+        for cmd, ctx in cmd_context_pairs
+    ]
     turn = Turn(role="assistant", text="", tool_calls=tool_calls, session_id=session_id)
     return Session(session_id=session_id, project_path="/fake", turns=[turn])
 
@@ -144,6 +155,58 @@ def test_analyze_cd_stripped():
     cmds = {p.command for p in result.command_patterns}
     assert "cd" in cmds
     assert not any("/" in c for c in cmds)
+
+
+# --- intent extraction ---
+
+def test_analyze_intent_snippets_populated():
+    s1 = _make_session_with_context("s1", [
+        ("git status", "I'll check the working tree before committing."),
+        ("git status", "Let me verify what changed."),
+    ])
+    s2 = _make_session_with_context("s2", [
+        ("git status", "Running git status to see untracked files."),
+    ])
+    result = analyze([s1, s2], min_command_count=1, min_sequence_count=99)
+    cmds = {p.command: p for p in result.command_patterns}
+    assert "git status" in cmds
+    assert len(cmds["git status"].intent_snippets) == 3
+
+
+def test_analyze_intent_snippets_deduplicated():
+    repeated_ctx = "I'll check the working tree."
+    s1 = _make_session_with_context("s1", [
+        ("git status", repeated_ctx),
+        ("git status", repeated_ctx),
+    ])
+    result = analyze([s1], min_command_count=1, min_sequence_count=99)
+    cmds = {p.command: p for p in result.command_patterns}
+    assert cmds["git status"].intent_snippets.count(repeated_ctx) == 1
+
+
+def test_analyze_intent_snippets_capped_at_five():
+    pairs = [(f"git status", f"Context number {i}") for i in range(10)]
+    s1 = _make_session_with_context("s1", pairs)
+    result = analyze([s1], min_command_count=1, min_sequence_count=99)
+    cmds = {p.command: p for p in result.command_patterns}
+    assert len(cmds["git status"].intent_snippets) <= 5
+
+
+def test_analyze_no_intent_when_context_empty():
+    s1 = _make_session("s1", ["git status", "git status"])
+    result = analyze([s1], min_command_count=1, min_sequence_count=99)
+    cmds = {p.command: p for p in result.command_patterns}
+    assert cmds["git status"].intent_snippets == []
+
+
+def test_clean_snippet_trims_and_joins_lines():
+    text = "  First line.  \n  Second line.  \n"
+    assert _clean_snippet(text) == "First line. Second line."
+
+
+def test_clean_snippet_truncates_long_text():
+    long_text = "x" * 300
+    assert len(_clean_snippet(long_text)) == 200
 
 
 # --- CommandPattern / ToolSequencePattern properties ---

@@ -18,6 +18,7 @@ class ToolCall:
     input: dict
     session_id: str
     timestamp: datetime | None = None
+    context: str = ""  # assistant reasoning text from the same turn
 
     @property
     def command(self) -> str | None:
@@ -86,7 +87,8 @@ def _extract_text(content) -> str:
 
 
 def _extract_tool_calls(content, session_id: str,
-                         timestamp: datetime | None) -> list[ToolCall]:
+                         timestamp: datetime | None,
+                         context: str = "") -> list[ToolCall]:
     if not content:
         return []
     return [
@@ -95,6 +97,7 @@ def _extract_tool_calls(content, session_id: str,
             input=b.get("input", {}),
             session_id=session_id,
             timestamp=timestamp,
+            context=context,
         )
         for b in content
         if isinstance(b, dict) and b.get("type") == "tool_use"
@@ -119,13 +122,15 @@ def parse_session_file(path: Path) -> Session:
                 continue
             content = msg.get("content")
             ts = _parse_timestamp(raw)
+            text = _extract_text(content)
             turns.append(Turn(
                 role=role,
-                text=_extract_text(content),
+                text=text,
                 tool_calls=_extract_tool_calls(
                     content if isinstance(content, list) else None,
                     session_id=session_id,
                     timestamp=ts,
+                    context=text if role == "assistant" else "",
                 ),
                 session_id=session_id,
                 timestamp=ts,

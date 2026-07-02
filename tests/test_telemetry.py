@@ -56,6 +56,33 @@ def test_extract_text_empty():
     assert _extract_text([]) == ""
 
 
+# --- ToolCall.context ---
+
+def test_tool_call_context_from_assistant_turn(tmp_path):
+    f = tmp_path / "ctx.jsonl"
+    _write_jsonl(f, [
+        {"message": {"role": "assistant", "content": [
+            {"type": "text", "text": "I'll run git status to check the working tree."},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "git status"}},
+        ]}},
+    ])
+    session = parse_session_file(f)
+    tc = session.tool_calls[0]
+    assert "git status" in tc.context
+    assert "working tree" in tc.context
+
+
+def test_tool_call_context_empty_for_no_text(tmp_path):
+    f = tmp_path / "ctx2.jsonl"
+    _write_jsonl(f, [
+        {"message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Bash", "input": {"command": "ls"}},
+        ]}},
+    ])
+    session = parse_session_file(f)
+    assert session.tool_calls[0].context == ""
+
+
 # --- parse_session_file ---
 
 def test_parse_session_file_basic(tmp_path):

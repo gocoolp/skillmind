@@ -59,10 +59,14 @@ Observed {seen}.
 
 
 def skill_skeleton_from_command(pattern: CommandPattern) -> str:
+    intent_comment = ""
+    if pattern.intent_snippets:
+        lines = "\n".join(f"  - {s}" for s in pattern.intent_snippets[:3])
+        intent_comment = f"\n<!-- Observed context:\n{lines}\n-->"
     return _skeleton(
         name=f"{pattern.command.split()[0].capitalize()} workflow",
         triggers=f'"{pattern.command}", "run {pattern.command.split()[0]}"',
-        seen=f"{pattern.count}× across {len(pattern.sessions)} sessions",
+        seen=f"{pattern.count}× across {len(pattern.sessions)} sessions{intent_comment}",
         body=f"1. \n2. \n3. \n\n```bash\n{pattern.command}\n```",
     )
 
@@ -140,9 +144,15 @@ def skill_from_command_pattern(pattern: CommandPattern,
                                 backend: LLMBackend | None = None) -> tuple[str, bool]:
     if backend is None:
         return skill_skeleton_from_command(pattern), False
+    intent_block = ""
+    if pattern.intent_snippets:
+        snippets = "\n".join(f"  - {s}" for s in pattern.intent_snippets[:3])
+        intent_block = (
+            f"\n\nContext in which this command appeared (sampled from real sessions):\n{snippets}"
+        )
     prompt = (
         f"Command `{pattern.command}` was used {pattern.count} times across "
-        f"{len(pattern.sessions)} Claude Code sessions. "
+        f"{len(pattern.sessions)} Claude Code sessions.{intent_block}\n\n"
         f"Draft a SKILL.md teaching when and how to use it."
     )
     return backend.complete(prompt), True

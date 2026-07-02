@@ -16,6 +16,7 @@ class CommandPattern:
     command: str
     count: int
     sessions: list[str] = field(default_factory=list)
+    intent_snippets: list[str] = field(default_factory=list)
 
     @property
     def confidence(self) -> float:
@@ -52,6 +53,15 @@ class AnalysisResult:
 
 
 _PATH_ONLY_CMDS = {"cd", "export", "source", "."}
+_MAX_SNIPPET_LEN = 200
+_MAX_SNIPPETS_PER_PATTERN = 5
+
+
+def _clean_snippet(text: str) -> str:
+    """Trim and normalise a context snippet to a single short string."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    joined = " ".join(lines)
+    return joined[:_MAX_SNIPPET_LEN].strip()
 
 def _normalize_command(cmd: str) -> str:
     tokens = cmd.strip().split()
@@ -77,6 +87,7 @@ def analyze(sessions: list[Session],
             sequence_window: int = 3) -> AnalysisResult:
     command_counter: Counter[str] = Counter()
     command_sessions: dict[str, list[str]] = {}
+    command_intents: dict[str, list[str]] = {}
     sequence_counter: Counter[tuple] = Counter()
     sequence_sessions: dict[tuple, list[str]] = {}
     total_tool_calls = 0
@@ -86,12 +97,19 @@ def analyze(sessions: list[Session],
         seen_seqs: set[tuple] = set()
         total_tool_calls += len(session.tool_calls)
 
-        for cmd in session.bash_commands:
-            norm = _normalize_command(cmd)
+        for tc in session.tool_calls:
+            if tc.name != "Bash" or not tc.command:
+                continue
+            norm = _normalize_command(tc.command)
             command_counter[norm] += 1
             if norm not in seen_cmds:
                 command_sessions.setdefault(norm, []).append(session.session_id)
                 seen_cmds.add(norm)
+            if tc.context:
+                snippet = _clean_snippet(tc.context)
+                existing = command_intents.setdefault(norm, [])
+                if snippet and snippet not in existing and len(existing) < _MAX_SNIPPETS_PER_PATTERN:
+                    existing.append(snippet)
 
         for seq in _extract_tool_sequence(session.tool_calls, window=sequence_window):
             sequence_counter[seq] += 1
@@ -101,7 +119,11 @@ def analyze(sessions: list[Session],
 
     return AnalysisResult(
         command_patterns=[
-            CommandPattern(cmd, count, command_sessions.get(cmd, []))
+            CommandPattern(
+                cmd, count,
+                command_sessions.get(cmd, []),
+                command_intents.get(cmd, []),
+            )
             for cmd, count in command_counter.items()
             if count >= min_command_count
         ],
