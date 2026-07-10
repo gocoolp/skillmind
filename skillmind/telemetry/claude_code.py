@@ -18,7 +18,7 @@ class ToolCall:
     input: dict
     session_id: str
     timestamp: datetime | None = None
-    context: str = ""  # assistant reasoning text from the same turn
+    context: str = ""  # assistant reasoning stitched from up to N prior turns
 
     @property
     def command(self) -> str | None:
@@ -87,8 +87,7 @@ def _extract_text(content) -> str:
 
 
 def _extract_tool_calls(content, session_id: str,
-                         timestamp: datetime | None,
-                         context: str = "") -> list[ToolCall]:
+                         timestamp: datetime | None) -> list[ToolCall]:
     if not content:
         return []
     return [
@@ -97,11 +96,38 @@ def _extract_tool_calls(content, session_id: str,
             input=b.get("input", {}),
             session_id=session_id,
             timestamp=timestamp,
-            context=context,
         )
         for b in content
         if isinstance(b, dict) and b.get("type") == "tool_use"
     ]
+
+
+def _enrich_contexts(turns: list[Turn], lookback: int = 3) -> None:
+    """Set ToolCall.context by stitching assistant reasoning up to `lookback` turns back.
+
+    Walks backwards from each assistant turn collecting reasoning text.
+    Stops when a non-empty user turn is reached — that signals a new task request.
+    Empty user turns are tool results and are transparent to the walk.
+    """
+    for i, turn in enumerate(turns):
+        if turn.role != "assistant" or not turn.tool_calls:
+            continue
+        parts: list[str] = []
+        assistant_count = 0
+        j = i
+        while j >= 0 and assistant_count < lookback:
+            t = turns[j]
+            if t.role == "assistant":
+                if t.text:
+                    parts.insert(0, t.text)
+                assistant_count += 1
+            elif t.role == "user" and t.text:
+                break  # real user request = task boundary
+            j -= 1
+        combined = " ".join(parts).strip()
+        if combined:
+            for tc in turn.tool_calls:
+                tc.context = combined
 
 
 def parse_session_file(path: Path) -> Session:
@@ -122,19 +148,18 @@ def parse_session_file(path: Path) -> Session:
                 continue
             content = msg.get("content")
             ts = _parse_timestamp(raw)
-            text = _extract_text(content)
             turns.append(Turn(
                 role=role,
-                text=text,
+                text=_extract_text(content),
                 tool_calls=_extract_tool_calls(
                     content if isinstance(content, list) else None,
                     session_id=session_id,
                     timestamp=ts,
-                    context=text if role == "assistant" else "",
                 ),
                 session_id=session_id,
                 timestamp=ts,
             ))
+    _enrich_contexts(turns)
     return Session(session_id=session_id, project_path=str(path.parent), turns=turns)
 
 

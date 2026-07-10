@@ -7,6 +7,7 @@ import pytest
 from skillmind.telemetry.claude_code import (
     Session,
     ToolCall,
+    _enrich_contexts,
     _extract_text,
     _parse_timestamp,
     iter_session_files,
@@ -81,6 +82,48 @@ def test_tool_call_context_empty_for_no_text(tmp_path):
     ])
     session = parse_session_file(f)
     assert session.tool_calls[0].context == ""
+
+
+def test_tool_call_lookback_stitches_prior_turns(tmp_path):
+    f = tmp_path / "lookback.jsonl"
+    _write_jsonl(f, [
+        {"message": {"role": "assistant", "content": [
+            {"type": "text", "text": "Let me check the auth module first."},
+            {"type": "tool_use", "name": "Read", "input": {"file_path": "/auth.py"}},
+        ]}},
+        # tool result — empty text, transparent to lookback
+        {"message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "1", "content": "..."},
+        ]}},
+        {"message": {"role": "assistant", "content": [
+            {"type": "text", "text": "Token validation is too late. Fixing and committing."},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "git commit -m 'fix'"}},
+        ]}},
+    ])
+    session = parse_session_file(f)
+    bash_tc = next(tc for tc in session.tool_calls if tc.name == "Bash")
+    assert "auth module" in bash_tc.context
+    assert "Token validation" in bash_tc.context
+
+
+def test_tool_call_stops_at_task_boundary(tmp_path):
+    f = tmp_path / "boundary.jsonl"
+    _write_jsonl(f, [
+        {"message": {"role": "assistant", "content": [
+            {"type": "text", "text": "Setting up the database schema."},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "psql setup.sql"}},
+        ]}},
+        # real user request = task boundary
+        {"message": {"role": "user", "content": "Now deploy the app"}},
+        {"message": {"role": "assistant", "content": [
+            {"type": "text", "text": "Deploying the application."},
+            {"type": "tool_use", "name": "Bash", "input": {"command": "git push heroku main"}},
+        ]}},
+    ])
+    session = parse_session_file(f)
+    deploy_tc = next(tc for tc in session.tool_calls if "heroku" in (tc.command or ""))
+    assert "Deploying" in deploy_tc.context
+    assert "database" not in deploy_tc.context
 
 
 # --- parse_session_file ---
