@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkillMind — skills that write themselves</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #fafaf9;
+      --fg: #1a1a1a;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --code-bg: #111827;
+      --code-fg: #e5e7eb;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --green: #16a34a;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      --mono: "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      font-size: 16px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* NAV */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-brand {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
+    .nav-links { display: flex; gap: 1.5rem; }
+    .nav-links a { color: var(--muted); font-size: 0.9rem; }
+    .nav-links a:hover { color: var(--fg); text-decoration: none; }
+
+    /* LAYOUT */
+    .container { max-width: 760px; margin: 0 auto; padding: 0 2rem; }
+
+    /* HERO */
+    .hero {
+      padding: 5rem 0 3.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 540px;
+      margin-bottom: 2rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+    }
+    .hero-install {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.55rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--fg); color: var(--bg); }
+    .btn-primary:hover { background: #333; text-decoration: none; }
+    .btn-ghost {
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+    .btn-ghost:hover { background: var(--border); text-decoration: none; }
+
+    /* INLINE CODE */
+    code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: #f3f4f6;
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+
+    /* CODE BLOCK */
+    pre {
+      background: var(--code-bg);
+      color: var(--code-fg);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 1.2rem 1.4rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      line-height: 1.7;
+      position: relative;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: inherit;
+      color: inherit;
+    }
+    .prompt { color: #6b7280; user-select: none; }
+    .cmd { color: #93c5fd; }
+    .comment { color: #4b5563; }
+    .out { color: #86efac; }
+
+    /* SECTIONS */
+    section { padding: 3.5rem 0; border-bottom: 1px solid var(--border); }
+    section:last-of-type { border-bottom: none; }
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    p { color: var(--muted); margin-bottom: 1rem; }
+    p:last-child { margin-bottom: 0; }
+
+    /* STEPS */
+    .steps { display: flex; flex-direction: column; gap: 2rem; }
+    .step { display: flex; gap: 1.2rem; }
+    .step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--fg);
+      color: var(--bg);
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    .step-body h3 { margin-bottom: 0.3rem; }
+
+    /* DIFF / BEFORE-AFTER */
+    .diff {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    @media (max-width: 600px) { .diff { grid-template-columns: 1fr; } }
+    .diff-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    .diff-label.before { color: #9ca3af; }
+    .diff-label.after { color: var(--green); }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th {
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      padding: 0 0 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 0.7rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    td:first-child { color: var(--fg); font-family: var(--mono); font-size: 0.82rem; }
+    tr:last-child td { border-bottom: none; }
+
+    /* CALLOUT */
+    .callout {
+      background: var(--accent-light);
+      border-left: 3px solid var(--accent);
+      padding: 1rem 1.2rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.9rem;
+      color: var(--fg);
+      margin-top: 1.5rem;
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">skillmind</span>
+  <div class="nav-links">
+    <a href="https://github.com/gocoolp/skillmind#readme">Docs</a>
+    <a href="#install">Quickstart</a>
+    <a href="https://github.com/gocoolp/skillmind">GitHub</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div style="margin-bottom:1rem">
+      <span class="badge">SKILL.md · open standard · 40+ agents</span>
+    </div>
+    <h1>Skills that write<br>themselves.</h1>
+    <p>SkillMind watches your Claude Code sessions, finds the patterns you repeat, and generates SKILL.md files automatically — so the next agent starts where you left off.</p>
+    <div class="hero-install">
+      <a href="#install" class="btn btn-primary">Get started</a>
+      <a href="https://github.com/gocoolp/skillmind" class="btn btn-ghost">View on GitHub</a>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section>
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Reads your sessions</h3>
+          <p>Parses <code>~/.claude/projects/**/*.jsonl</code> — the session logs Claude Code already writes.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Detects patterns</h3>
+          <p>Finds recurring bash commands and tool-call sequences across sessions. Extracts intent from the assistant's reasoning chain — not just what ran, but why.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Generates SKILL.md</h3>
+          <p>Writes a skill file per pattern, ready to drop into Claude Code, Cursor, Copilot, Gemini CLI, or any agent that reads SKILL.md.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTENT EXTRACTION -->
+  <section>
+    <h2>Intent extraction</h2>
+    <p>Most tools see <em>what</em> you ran. SkillMind reads the assistant's reasoning in the turns before each command and stitches them into intent context — so generated skills explain when to use a pattern, not just how.</p>
+
+    <div class="diff">
+      <div>
+        <div class="diff-label before">Without intent</div>
+        <pre><code>Command `git commit` used
+12 times across 4 sessions.</code></pre>
+      </div>
+      <div>
+        <div class="diff-label after">With intent</div>
+        <pre><code>Command `git commit` used
+12 times. Context:
+- Token validation fix after
+  baseline test run.
+- Staging only auth changes
+  to keep commit atomic.
+- Separating refactor from
+  bug fix.</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section id="install">
+    <h2>Quickstart</h2>
+    <pre><code><span class="comment"># clone and install</span>
+<span class="prompt">$ </span><span class="cmd">git clone https://github.com/gocoolp/skillmind</span>
+<span class="prompt">$ </span><span class="cmd">cd skillmind && uv sync</span>
+
+<span class="comment"># see what patterns exist in your sessions</span>
+<span class="prompt">$ </span><span class="cmd">uv run skillmind scan</span>
+<span class="out">✓ 48 sessions · 1,204 tool calls
+
+Top bash command patterns
+git status    ████████   42×  12 sessions
+gh pr create  ██████     28×   9 sessions
+pytest        █████      21×   7 sessions</span>
+
+<span class="comment"># generate SKILL.md files</span>
+<span class="prompt">$ </span><span class="cmd">uv run skillmind suggest --output ./skills --top-n 5</span></code></pre>
+
+    <div class="callout">
+      No API key? SkillMind generates skeleton files you can fill in manually. Set <code>ANTHROPIC_API_KEY</code> for AI-drafted content.
+    </div>
+  </section>
+
+  <!-- BACKENDS -->
+  <section>
+    <h2>LLM backends</h2>
+    <p>Set any key and SkillMind uses it. Fall through to skeleton mode with no key — fully offline, no data sent anywhere.</p>
+    <table>
+      <thead>
+        <tr><th>Env var</th><th>Backend</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ANTHROPIC_API_KEY</td><td>Claude (recommended)</td></tr>
+        <tr><td>OPENAI_API_KEY + OPENAI_BASE_URL</td><td>OpenAI, Azure, or any compatible endpoint</td></tr>
+        <tr><td>SKILLMIND_OLLAMA</td><td>Local Ollama — fully air-gapped</td></tr>
+        <tr><td>(none)</td><td>Skeleton mode — offline, no API needed</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- LOCAL -->
+  <section>
+    <h2>Everything stays local</h2>
+    <p>SkillMind reads logs on your machine and writes files on your machine. Session data never leaves your environment. When you set an API key, only the extracted pattern summary and intent snippets are sent — never raw session content.</p>
+  </section>
+
+</div>
+
+<footer>
+  <p>SkillMind is open source · <a href="https://github.com/gocoolp/skillmind">github.com/gocoolp/skillmind</a> · MIT license</p>
+</footer>
+
+</body>
+</html>
